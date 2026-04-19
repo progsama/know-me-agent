@@ -3,6 +3,7 @@ import { Socket } from 'socket.io';
 import { SendMessageDto } from '../../common/dto';
 import { ConversationService } from '../conversations/conversation.service';
 import { StreamService } from './stream.service';
+import { EmbeddingService } from '../memory/embedding.service';
 import { ChatErrorEvent } from '../../common/types';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class ChatService {
   constructor(
     private readonly conversationService: ConversationService,
     private readonly streamService: StreamService,
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   async handleIncomingMessage(
@@ -46,13 +48,29 @@ export class ChatService {
 
       this.logger.log(`Saved user message: ${userMessage.id}`);
 
+      this.embeddingService
+        .generateAndStore(
+          userMessage.id,
+          userId,
+          content,
+          'message',
+          { conversationId: conversation.id, role: 'user' },
+        )
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(
+            `Background embedding failed — continuing without: ${message}`,
+          );
+        });
+
       // Load recent history for prompt context
       const history = await this.conversationService.getRecentMessages(
         conversation.id,
         10,
       );
 
-      // Memory context is empty string for now — populated in Phase 6
+      // Memory context placeholder — populated in Phase 6
       const memoryContext = '';
 
       // Stream real Claude response
