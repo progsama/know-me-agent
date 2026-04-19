@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Socket } from 'socket.io';
 import { SendMessageDto } from '../../common/dto';
 import { ConversationService } from '../conversations/conversation.service';
-import { ChatChunkEvent, ChatCompleteEvent, ChatErrorEvent } from '../../common/types';
+import { StreamService } from './stream.service';
+import { ChatErrorEvent } from '../../common/types';
 
 @Injectable()
 export class ChatService {
@@ -10,6 +11,7 @@ export class ChatService {
 
   constructor(
     private readonly conversationService: ConversationService,
+    private readonly streamService: StreamService,
   ) {}
 
   async handleIncomingMessage(
@@ -20,15 +22,18 @@ export class ChatService {
     const { conversationId, content, requestId } = dto;
 
     try {
-      // Verify conversation exists for this user
+      // Verify conversation exists, create if not
       let conversation = await this.conversationService.getConversation(
         conversationId,
         userId,
       );
 
       if (!conversation) {
-        this.logger.log(`Conversation ${conversationId} not found — creating new one`);
-        conversation = await this.conversationService.createConversation(userId);
+        this.logger.log(
+          `Conversation ${conversationId} not found — creating new`,
+        );
+        conversation =
+          await this.conversationService.createConversation(userId);
       }
 
       // Persist user message
@@ -41,50 +46,32 @@ export class ChatService {
 
       this.logger.log(`Saved user message: ${userMessage.id}`);
 
-      // Fetch recent history for context (AI will use this in Phase 3)
+      // Load recent history for prompt context
       const history = await this.conversationService.getRecentMessages(
         conversation.id,
         10,
       );
 
-      this.logger.log(`Loaded ${history.length} recent messages for context`);
+      // Memory context is empty string for now — populated in Phase 6
+      const memoryContext = '';
 
-      // Placeholder response — real AI streaming wired in Phase 3
-      const placeholderResponse = `[Phase 2 Echo] You said: "${content}". AI streaming will be connected in Phase 3.`;
-
-      // Persist assistant placeholder message
-      const assistantMessage = await this.conversationService.saveMessage(
-        conversation.id,
+      // Stream real Claude response
+      await this.streamService.streamResponse(
+        client,
         userId,
-        'assistant',
-        placeholderResponse,
-        { requestId, phase: 'phase-2-placeholder' },
+        conversation.id,
+        requestId,
+        content,
+        history,
+        memoryContext,
       );
-
-      // Emit chunk event
-      const chunkEvent: ChatChunkEvent = {
-        requestId,
-        chunk: placeholderResponse,
-        messageId: assistantMessage.id,
-      };
-      client.emit('chat:chunk', chunkEvent);
-
-      // Emit complete event
-      const completeEvent: ChatCompleteEvent = {
-        requestId,
-        messageId: assistantMessage.id,
-        conversationId: conversation.id,
-      };
-      client.emit('chat:complete', completeEvent);
-
-      this.logger.log(`Response complete for requestId: ${requestId}`);
-
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
+      const message =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error handling message: ${message}`);
 
       const errorEvent: ChatErrorEvent = {
-        message: 'Failed to process message',
+        message: 'Failed to process your message',
         requestId,
       };
       client.emit('chat:error', errorEvent);

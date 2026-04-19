@@ -38,3 +38,17 @@ export interface ChatErrorEvent {
   message: string;
   requestId?: string;
 }
+
+export interface MemoryContext {
+  relevantMemories: string[];
+  peopleContext: string[];
+}
+
+export interface StreamContext {
+  userId: string;
+  conversationId: string;
+  requestId: string;
+  content: string;
+  history: MessageRecord[];
+  memoryContext: string;
+}
