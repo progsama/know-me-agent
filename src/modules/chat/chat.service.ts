@@ -4,6 +4,7 @@ import { SendMessageDto } from '../../common/dto';
 import { ConversationService } from '../conversations/conversation.service';
 import { StreamService } from './stream.service';
 import { EmbeddingService } from '../memory/embedding.service';
+import { ExtractionGraph } from '../extraction/extraction.graph';
 import { ChatErrorEvent } from '../../common/types';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class ChatService {
     private readonly conversationService: ConversationService,
     private readonly streamService: StreamService,
     private readonly embeddingService: EmbeddingService,
+    private readonly extractionGraph: ExtractionGraph,
   ) {}
 
   async handleIncomingMessage(
@@ -61,6 +63,16 @@ export class ChatService {
             error instanceof Error ? error.message : 'Unknown error';
           this.logger.warn(
             `Background embedding failed — continuing without: ${message}`,
+          );
+        });
+
+      this.extractionGraph
+        .run(userMessage.id, userId, content)
+        .catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(
+            `Background extraction failed — continuing without: ${message}`,
           );
         });
 

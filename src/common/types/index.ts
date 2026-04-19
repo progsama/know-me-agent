@@ -79,3 +79,46 @@ export interface EmbeddingStorageParams {
   source: 'message' | 'document' | 'memory';
   metadata?: Record<string, unknown>;
 }
+
+export interface ExtractedPerson {
+  name: string;
+  relationship: string;
+  facts: string[];
+}
+
+export interface ExtractedEntities {
+  people: ExtractedPerson[];
+  keyFacts: string[];
+  emotionalTone: string;
+  topics: string[];
+}
+
+export interface PersonRecord {
+  id: string;
+  user_id: string;
+  name: string;
+  relationship: string | null;
+  facts: string[];
+  first_mentioned_at: string;
+  last_mentioned_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryEntryRecord {
+  id: string;
+  user_id: string;
+  content: string;
+  category: 'fact' | 'preference' | 'relationship' | 'emotion';
+  entity_id: string | null;
+  embedding_id: string | null;
+  created_at: string;
+}
+
+export interface ExtractionGraphState {
+  messageId: string;
+  userId: string;
+  content: string;
+  extractedEntities: ExtractedEntities | null;
+  errors: string[];
+}
