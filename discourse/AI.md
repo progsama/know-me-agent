@@ -316,7 +316,7 @@ Build **“Know Me”** as a NestJS 11 app with **real-time chat (Socket.IO)** a
 
 ## Phase 3
 
-## Cursor
+## Cursor (Phase 3)
 
 ### Phase 3 summary — “Know Me”
 
@@ -366,7 +366,7 @@ Phase 3 replaced the fake echo response with **real Claude AI responses streamin
 
 ---
 
-### What Was Built
+### What Was Built — Phase 3
 
 **StreamService (`src/modules/chat/stream.service.ts`)** — the most important new file. This service:
 
@@ -453,7 +453,7 @@ StreamService.streamResponse()
 
 ---
 
-### What the Verification Proved
+### What the Verification Proved — Phase 3
 
 **First message** (`chars: 242`) — Claude responded as Shirin, engaging with Alex's introduction and asking about Lily
 
@@ -482,3 +482,179 @@ Updated files: `chat.service.ts`, `chat.module.ts`, `src/common/types/index.ts`,
 ---
 
 Ready for Phase 4 — vector embeddings and semantic search — whenever you are.
+
+### Phase 4
+
+---
+
+### Claude (Phase 4)
+
+## Phase 4 Complete — Full Summary
+
+---
+
+### What Phase 4 Was About
+
+Phase 4 built the **vector memory system** — the foundation of the entire RAG pipeline. Every message the user sends now gets converted into 1536 numbers (a vector embedding) representing its meaning, and stored in the database. This makes semantic search possible — finding relevant past messages by meaning rather than exact words.
+
+---
+
+### What Was Built — Phase 4
+
+**EmbeddingService (`src/modules/memory/embedding.service.ts`)** — the core of Phase 4. This service:
+
+- Creates an `OpenAIEmbeddings` instance via LangChain pointed at `text-embedding-3-small`
+- `generateEmbedding(text)` — sends text to OpenAI and gets back 1536 numbers representing its meaning
+- `storeEmbedding(params)` — takes a vector and stores it in the `message_embeddings` table, formatting it as a postgres vector literal `[0.1, 0.2, ...]` for pgvector
+- `generateAndStore()` — convenience method that calls both in sequence
+- Full graceful degradation — if OpenAI is unavailable, logs a warning and returns null instead of crashing. Conversations continue normally without embeddings
+
+**SemanticSearchService (`src/modules/memory/semantic-search.service.ts`)** — searches the vector database:
+
+- `search(query, userId, topK)` — converts the query to a vector, then runs a cosine similarity search against all stored embeddings for that user, returning the top K most semantically similar results
+- `searchByPerson(personName, userId)` — convenience wrapper that searches for everything known about a specific person
+- Uses the `<=>` pgvector operator for cosine distance — lower distance means higher similarity
+- Measures and logs query time — must stay under 200ms per the spec
+- Returns empty array gracefully if anything fails
+
+**MemoryModule (`src/modules/memory/memory.module.ts`)** — NestJS module that packages both services together and exports them for use by other modules
+
+**ChatService update** — after saving each user message, fires off embedding generation as a background task:
+
+```text
+save user message → fire-and-forget embedding → stream Claude response
+                           ↓
+                    (runs in background)
+                    generate vector → store in DB
+```
+
+The key word is fire-and-forget — the `.catch()` handler means if embedding fails, the error is logged as a warning and the conversation continues. The user never experiences a delay or failure because of the embedding step.
+
+---
+
+### How Vector Embeddings Work in Practice
+
+When you sent "Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years" — OpenAI's model converted that entire sentence into exactly 1536 numbers like:
+
+```text
+[-0.0048, -0.0798, -0.0302, ... 1533 more numbers]
+```
+
+These numbers capture the meaning of the text mathematically. The preview in the logs showed the first three:
+
+```text
+Generated embedding — dims: 1536 | preview: [-0.0048, -0.0798, -0.0302...]
+```
+
+Later when someone asks "what do you know about Lily?" — that question also gets converted to 1536 numbers, and the system finds which stored vectors are mathematically closest to it. Even though the words are different, the meaning is similar, so the original message about Lily gets retrieved. That's the magic of semantic search.
+
+---
+
+### The Cosine Similarity Search SQL
+
+```sql
+SELECT
+  id,
+  content,
+  source,
+  metadata,
+  1 - (embedding <=> $1::vector) AS similarity
+FROM message_embeddings
+WHERE user_id = $2
+  AND embedding IS NOT NULL
+ORDER BY embedding <=> $1::vector
+LIMIT $3
+```
+
+The `<=>` operator is pgvector's cosine distance operator. Lower distance = more similar. The `1 - distance` converts it to similarity where 1.0 = identical and 0.0 = completely different. The HNSW index built in Phase 1 makes this search extremely fast even with thousands of stored embeddings.
+
+---
+
+### Graceful Degradation — Why It Matters
+
+The spec explicitly requires NFR3: "If the embedding service is unavailable, conversations should continue without semantic search." Phase 4 implements this at two levels:
+
+At the **generation level** — if OpenAI returns an error, `generateEmbedding()` catches it, logs a warning, and returns null instead of throwing.
+
+At the **storage level** — if the vector is null, `generateAndStore()` skips storage and returns null.
+
+At the **chat level** — the fire-and-forget `.catch()` means even if the entire embedding pipeline crashes, the user's message is still processed and Claude still responds. The embedding failure is logged but invisible to the user.
+
+This is production-grade thinking — the AI conversation is the core product, and a supporting service like embeddings should never be able to bring it down.
+
+---
+
+### What the Verification Proved — Phase 4
+
+Five consecutive messages all produced the same pattern:
+
+```text
+Saved user message → Generated embedding (1536 dims) → Stored embedding → Stream complete
+```
+
+The embedding always completed before the stream finished — proving it runs truly in the background without delaying responses. Response sizes grew (354 → 519 → 555 chars) showing Claude is building richer responses as it accumulates conversation history.
+
+---
+
+### What's Not Wired Yet (By Design)
+
+The `SemanticSearchService` exists and works but is not yet called anywhere in the chat flow. The `memoryContext` in `ChatService` is still an empty string. This is intentional — the search results need to be assembled into context and injected into the prompt, which happens in Phase 6 after the LangGraph extraction pipeline is built in Phase 5.
+
+The pipeline so far looks like:
+
+```text
+User message → Save → Embed → Stream Claude response
+                               ↑
+                        (no memory context yet)
+```
+
+After Phase 5 and 6 it will look like:
+
+```text
+User message → Save → Embed (background)
+                    → Extract entities (background)  ← Phase 5
+                    → Search memories               ← Phase 6
+                    → Inject context into Claude
+                    → Stream response
+```
+
+---
+
+Ready for Phase 5 — the LangGraph extraction pipeline — whenever you are.
+
+### Cursor (Phase 4 recap)
+
+## Summary of what was done (Phase 4 — embeddings & semantic search)
+
+### Types
+
+- **`src/common/types/index.ts`** — Added `EmbeddingRecord`, `SemanticSearchResult`, and `EmbeddingStorageParams`.
+
+### Memory module (new)
+
+- **`src/modules/memory/embedding.service.ts`** — Uses LangChain **`OpenAIEmbeddings`** from `@langchain/openai` with **`apiKey` / `model` / `dimensions`** from **`ConfigService`**. Inserts into **`message_embeddings`** via **`PG_POOL`**. On missing config, bad config, OpenAI errors, or DB errors it **logs with Nest `Logger`** and returns **`null`** / skips work (**graceful degradation**). No `any`; no hardcoded model/dimension IDs (only config).
+- **`src/modules/memory/semantic-search.service.ts`** — Cosine-style search with **`<=>`** on `message_embeddings`, optional **`source`** filter, **`topK`**. Uses **`EmbeddingService`** for the query vector; returns **`[]`** if embedding fails or on SQL errors.
+- **`src/modules/memory/memory.module.ts`** — Imports **`DatabaseModule`**, registers and exports **`EmbeddingService`** and **`SemanticSearchService`**.
+- **Removed** **`src/modules/memory/index.ts`** (replaced by the module file).
+
+### Chat & app wiring
+
+- **`src/modules/chat/chat.service.ts`** — Injects **`EmbeddingService`**. After saving a user message, calls **`generateAndStore(...)`** in a **fire-and-forget** way with **`.catch(...)`** so streaming is not blocked. **`memoryContext`** stays **`''`** for Phase 6.
+- **`src/modules/chat/chat.module.ts`** — Imports **`MemoryModule`**.
+- **`src/app.module.ts`** — Imports **`MemoryModule`**.
+
+### What was *not* kept
+
+- A temporary **`GET /api/conversations/test-search`** on the conversations controller was used for a quick check, then **removed** so the API stays clean.
+- **`ConversationsModule`** was **not** left depending on **`MemoryModule`** (that was only for the temporary route).
+
+### Intentionally unchanged
+
+- **No** migration / schema edits.
+- **`StreamService` / gateway / stream pipeline** unchanged except the planned **`ChatService`** hook above (your step list asked for that despite the earlier “don’t touch chat” note).
+
+### Your environment
+
+- **`.env`** was not edited in-repo (gitignored). Embeddings need a real **`OPENAI_API_KEY`**; with the placeholder, OpenAI returns **401** and search/embed paths **degrade** as designed.
+
+**Net effect:** every saved user message can spawn a **background embedding** row; **semantic search** is available for future Phase 6 wiring; chat still works when embeddings are off or failing.

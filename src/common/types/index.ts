@@ -52,3 +52,30 @@ export interface StreamContext {
   history: MessageRecord[];
   memoryContext: string;
 }
+
+export interface EmbeddingRecord {
+  id: string;
+  message_id: string | null;
+  user_id: string;
+  content: string;
+  source: 'message' | 'document' | 'memory';
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SemanticSearchResult {
+  id: string;
+  content: string;
+  source: 'message' | 'document' | 'memory';
+  similarity: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface EmbeddingStorageParams {
+  messageId: string | null;
+  userId: string;
+  content: string;
+  embedding: number[];
+  source: 'message' | 'document' | 'memory';
+  metadata?: Record<string, unknown>;
+}
