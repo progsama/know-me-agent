@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Know Me WS Test</title>
+  </head>
+  <body>
+    <h2>Know Me WebSocket Test</h2>
+    <div
+      id="log"
+      style="
+        font-family: monospace;
+        white-space: pre;
+        background: #111;
+        color: #0f0;
+        padding: 16px;
+        height: 400px;
+        overflow: auto;
+      "
+    ></div>
+    <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+    <script>
+      const userId = '550e8400-e29b-41d4-a716-446655440000';
+      const conversationId = '85e60a8a-86a6-4746-b03f-b756aa12e76c';
+
+      const log = (msg) => {
+        document.getElementById('log').textContent += msg + '\n';
+      };
+
+      const socket = io('http://localhost:3000', { query: { userId } });
+
+      socket.on('connect', () => {
+        log('✅ Connected: ' + socket.id);
+        socket.emit('chat:send', {
+          conversationId,
+          content: 'Hello, my name is Alex',
+          requestId: 'req-001',
+        });
+      });
+
+      socket.on('chat:chunk', (data) =>
+        log('📦 chunk: ' + JSON.stringify(data)),
+      );
+      socket.on('chat:complete', (data) =>
+        log('✅ complete: ' + JSON.stringify(data)),
+      );
+      socket.on('chat:error', (data) =>
+        log('❌ error: ' + JSON.stringify(data)),
+      );
+      socket.on('disconnect', () => log('🔌 Disconnected'));
+    </script>
+  </body>
+</html>
