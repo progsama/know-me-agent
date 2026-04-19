@@ -1,94 +1,152 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Know Me — Phase 3 Stream Test</title>
-  <style>
-    body { font-family: monospace; background: #0d0d0d; color: #00ff00; padding: 20px; }
-    h2 { color: #00ff00; }
-    #log { background: #111; padding: 16px; height: 250px; overflow-y: auto; white-space: pre-wrap; border: 1px solid #333; margin-bottom: 10px; }
-    #stream { background: #111; padding: 16px; min-height: 80px; white-space: pre-wrap; border: 1px solid #444; color: #ffff00; margin-bottom: 10px; }
-    button { margin: 4px; padding: 8px 16px; background: #1a1a1a; color: #00ff00; border: 1px solid #00ff00; cursor: pointer; }
-    input, textarea { background: #1a1a1a; color: #00ff00; border: 1px solid #333; padding: 8px; width: 500px; display: block; margin-bottom: 8px; }
-    label { color: #888; font-size: 11px; display: block; margin-bottom: 2px; }
-  </style>
-</head>
-<body>
-<h2>Know Me — Phase 3 Streaming Test</h2>
+  <head>
+    <title>Know Me — Phase 3 Stream Test</title>
+    <style>
+      body {
+        font-family: monospace;
+        background: #0d0d0d;
+        color: #00ff00;
+        padding: 20px;
+      }
+      h2 {
+        color: #00ff00;
+      }
+      #log {
+        background: #111;
+        padding: 16px;
+        height: 250px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        border: 1px solid #333;
+        margin-bottom: 10px;
+      }
+      #stream {
+        background: #111;
+        padding: 16px;
+        min-height: 80px;
+        white-space: pre-wrap;
+        border: 1px solid #444;
+        color: #ffff00;
+        margin-bottom: 10px;
+      }
+      button {
+        margin: 4px;
+        padding: 8px 16px;
+        background: #1a1a1a;
+        color: #00ff00;
+        border: 1px solid #00ff00;
+        cursor: pointer;
+      }
+      input,
+      textarea {
+        background: #1a1a1a;
+        color: #00ff00;
+        border: 1px solid #333;
+        padding: 8px;
+        width: 500px;
+        display: block;
+        margin-bottom: 8px;
+      }
+      label {
+        color: #888;
+        font-size: 11px;
+        display: block;
+        margin-bottom: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Know Me — Phase 3 Streaming Test</h2>
 
-<label>User ID</label>
-<input id="userId" value="550e8400-e29b-41d4-a716-446655440000" />
+    <label>User ID</label>
+    <input id="userId" value="550e8400-e29b-41d4-a716-446655440000" />
 
-<label>Conversation ID (from POST /api/conversations)</label>
-<input id="conversationId" placeholder="paste conversation id here" />
+    <label>Conversation ID (from POST /api/conversations)</label>
+    <input id="conversationId" placeholder="paste conversation id here" />
 
-<label>Message</label>
-<textarea id="messageInput" rows="3">Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and she loves it there.</textarea>
+    <label>Message</label>
+    <textarea id="messageInput" rows="3">
+Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and she loves it there.</textarea
+    >
 
-<div>
-  <button onclick="connect()">Connect</button>
-  <button onclick="sendMessage()">Send Message</button>
-  <button onclick="disconnect()">Disconnect</button>
-</div>
+    <div>
+      <button onclick="connect()">Connect</button>
+      <button onclick="sendMessage()">Send Message</button>
+      <button onclick="disconnect()">Disconnect</button>
+    </div>
 
-<label>Events log:</label>
-<div id="log"></div>
+    <label>Events log:</label>
+    <div id="log"></div>
 
-<label>Streaming response (token by token):</label>
-<div id="stream"></div>
+    <label>Streaming response (token by token):</label>
+    <div id="stream"></div>
 
-<script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
-<script>
-  let socket = null;
-  let reqCount = 0;
+    <script src="https://cdn.socket.io/4.8.0/socket.io.min.js"></script>
+    <script>
+      let socket = null;
+      let reqCount = 0;
 
-  function log(msg) {
-    const el = document.getElementById('log');
-    el.textContent += new Date().toISOString().slice(11, 19) + ' ' + msg + '\n';
-    el.scrollTop = el.scrollHeight;
-  }
+      function log(msg) {
+        const el = document.getElementById('log');
+        el.textContent +=
+          new Date().toISOString().slice(11, 19) + ' ' + msg + '\n';
+        el.scrollTop = el.scrollHeight;
+      }
 
-  function connect() {
-    const userId = document.getElementById('userId').value.trim();
-    if (socket) socket.disconnect();
+      function connect() {
+        const userId = document.getElementById('userId').value.trim();
+        if (socket) socket.disconnect();
 
-    socket = io('http://localhost:3000', { query: { userId } });
+        socket = io('http://localhost:3000', { query: { userId } });
 
-    socket.on('connect', () => log('✅ Connected: ' + socket.id));
-    socket.on('disconnect', () => log('🔌 Disconnected'));
+        socket.on('connect', () => log('✅ Connected: ' + socket.id));
+        socket.on('disconnect', () => log('🔌 Disconnected'));
 
-    socket.on('chat:chunk', (data) => {
-      document.getElementById('stream').textContent += data.chunk;
-    });
+        socket.on('chat:chunk', (data) => {
+          document.getElementById('stream').textContent += data.chunk;
+        });
 
-    socket.on('chat:complete', (data) => {
-      log('✅ complete — messageId: ' + data.messageId + ' | conversationId: ' + data.conversationId);
-      document.getElementById('stream').textContent = '';
-    });
+        socket.on('chat:complete', (data) => {
+          const streamEl = document.getElementById('stream');
+          const response = streamEl.textContent;
+          log('✅ complete — messageId: ' + data.messageId);
+          log('💬 Response: ' + response);
+          streamEl.textContent = '';
+        });
 
-    socket.on('chat:error', (data) => {
-      log('❌ error: ' + JSON.stringify(data));
-    });
-  }
+        socket.on('chat:error', (data) => {
+          log('❌ error: ' + JSON.stringify(data));
+        });
+      }
 
-  function sendMessage() {
-    if (!socket || !socket.connected) {
-      log('⚠️ Not connected — click Connect first');
-      return;
-    }
-    const conversationId = document.getElementById('conversationId').value.trim();
-    const content = document.getElementById('messageInput').value.trim();
-    if (!conversationId) { log('⚠️ Paste a conversation ID first'); return; }
-    if (!content) { log('⚠️ Message is empty'); return; }
+      function sendMessage() {
+        if (!socket || !socket.connected) {
+          log('⚠️ Not connected — click Connect first');
+          return;
+        }
+        const conversationId = document
+          .getElementById('conversationId')
+          .value.trim();
+        const content = document.getElementById('messageInput').value.trim();
+        if (!conversationId) {
+          log('⚠️ Paste a conversation ID first');
+          return;
+        }
+        if (!content) {
+          log('⚠️ Message is empty');
+          return;
+        }
 
-    const requestId = 'req-' + (++reqCount);
-    document.getElementById('stream').textContent = '';
-    log('→ Sending [' + requestId + ']: ' + content.slice(0, 60) + '...');
-    socket.emit('chat:send', { conversationId, content, requestId });
-  }
+        const requestId = 'req-' + ++reqCount;
+        document.getElementById('stream').textContent = '';
+        log('→ Sending [' + requestId + ']: ' + content.slice(0, 60) + '...');
+        socket.emit('chat:send', { conversationId, content, requestId });
+      }
 
-  function disconnect() {
-    if (socket) socket.disconnect();
-  }
-</script>
-</body>
+      function disconnect() {
+        if (socket) socket.disconnect();
+      }
+    </script>
+  </body>
 </html>

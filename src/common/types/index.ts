@@ -122,3 +122,9 @@ export interface ExtractionGraphState {
   extractedEntities: ExtractedEntities | null;
   errors: string[];
 }
+
+export interface AssembledContext {
+  memoryContext: string;
+  retrievedMemories: SemanticSearchResult[];
+  mentionedPeople: PersonRecord[];
+}

@@ -5,6 +5,7 @@ import { ConversationService } from '../conversations/conversation.service';
 import { StreamService } from './stream.service';
 import { EmbeddingService } from '../memory/embedding.service';
 import { ExtractionGraph } from '../extraction/extraction.graph';
+import { ContextAssemblyService } from '../memory/context-assembly.service';
 import { ChatErrorEvent } from '../../common/types';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class ChatService {
     private readonly streamService: StreamService,
     private readonly embeddingService: EmbeddingService,
     private readonly extractionGraph: ExtractionGraph,
+    private readonly contextAssembly: ContextAssemblyService,
   ) {}
 
   async handleIncomingMessage(
@@ -82,10 +84,15 @@ export class ChatService {
         10,
       );
 
-      // Memory context placeholder — populated in Phase 6
-      const memoryContext = '';
+      const { memoryContext } = await this.contextAssembly.assembleContext(
+        userId,
+        content,
+      );
 
-      // Stream real Claude response
+      this.logger.log(
+        `Memory context assembled — length: ${memoryContext.length} chars`,
+      );
+
       await this.streamService.streamResponse(
         client,
         userId,
