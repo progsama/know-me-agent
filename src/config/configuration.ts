@@ -1,7 +1,10 @@
 export default () => ({
-  supabase: {
-    url: process.env.SUPABASE_URL ?? '',
-    anonKey: process.env.SUPABASE_ANON_KEY ?? '',
+  database: {
+    host: process.env.DB_HOST ?? 'localhost',
+    port: parseInt(process.env.DB_PORT ?? '5433', 10),
+    user: process.env.DB_USER ?? 'postgres',
+    password: process.env.DB_PASSWORD ?? 'postgres',
+    name: process.env.DB_NAME ?? 'know_me',
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY ?? '',
