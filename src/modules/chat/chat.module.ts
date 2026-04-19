@@ -9,6 +9,6 @@ import { ExtractionModule } from '../extraction/extraction.module';
 @Module({
   imports: [ConversationsModule, MemoryModule, ExtractionModule],
   providers: [ChatGateway, ChatService, StreamService],
-  exports: [StreamService],
+  exports: [StreamService, ChatGateway],
 })
 export class ChatModule {}

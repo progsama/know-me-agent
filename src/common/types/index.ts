@@ -128,3 +128,18 @@ export interface AssembledContext {
   retrievedMemories: SemanticSearchResult[];
   mentionedPeople: PersonRecord[];
 }
+
+export interface DocumentChunk {
+  content: string;
+  index: number;
+  totalChunks: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface DocumentProcessingResult {
+  fileName: string;
+  totalChunks: number;
+  embeddingsStored: number;
+  peopleExtracted: string[];
+  processingTimeMs: number;
+}

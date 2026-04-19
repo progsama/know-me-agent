@@ -1104,3 +1104,185 @@ Two phases remain: Phase 7 (document upload) and Phase 8 (tests). Ready when you
 On the **very first** message after someone is introduced, **people** / **embeddings** may still be writing in the background, so **RAG** is often strongest from the **second** message onward once DB + vectors are populated.
 
 ---
+
+### Phase 7
+
+### Claude (Phase 7 narrative)
+
+## Phase 7 Complete — Full Summary
+
+---
+
+### What Phase 7 Was About
+
+Phase 7 built the **document upload and processing pipeline** — the ability to upload a text file, have the system automatically chunk it, embed every chunk into the vector database, run entity extraction on each chunk, and then allow Claude to answer questions about the document's contents just as naturally as it recalls conversation history. This is the feature that completes the unified memory system — the RAG pipeline now searches across both live conversation messages and uploaded documents in a single query.
+
+---
+
+### What Was Built — Phase 7
+
+**DocumentProcessorService (`src/modules/documents/document-processor.service.ts`)** — the core processing engine with two responsibilities:
+
+`chunkText()` — splits a document into overlapping segments. The strategy is paragraph-first: split on double newlines, accumulate paragraphs into chunks up to 500 characters, carry a 50-character overlap into the next chunk so context isn't lost at boundaries. If a single paragraph exceeds 1000 characters it gets split by character limit with overlap. This produces semantically coherent chunks rather than arbitrary cuts mid-sentence.
+
+`processDocument()` — orchestrates the full pipeline for each chunk sequentially: generate and store an embedding with `source: 'document'`, then fire-and-forget the LangGraph extraction pipeline. After all chunks are processed, fetches all known people for the user and returns a `DocumentProcessingResult` summary.
+
+**DocumentsController (`src/modules/documents/documents.controller.ts`)** — the REST endpoint `POST /api/conversations/:conversationId/upload`. Uses multer with `memoryStorage()` so the file never touches disk — it lives entirely in memory as a buffer. Enforces 50KB file size limit and `.txt`/`.md` file type at the multer level before any code runs. After processing completes, emits a `chat:complete` WebSocket event with a summary message listing how many chunks were processed and which people were found.
+
+**DocumentsModule (`src/modules/documents/documents.module.ts`)** — imports MemoryModule, ExtractionModule, EntitiesModule, and ChatModule. The ChatModule import is what gives DocumentsController access to `ChatGateway.server` for emitting the WebSocket summary.
+
+**ChatModule update** — exported `ChatGateway` so DocumentsController could inject it for the WebSocket emit.
+
+**`scripts/ws-test.html` update** — added file upload UI with a Choose File button, filename display, and Upload Document button all on one line. The native browser file input is hidden and replaced with a custom styled button matching the rest of the interface. Upload progress and results display inline below the controls.
+
+---
+
+### How the Document Pipeline Works
+
+```text
+User uploads sample-journal.txt (15KB)
+              │
+              ▼
+multer reads file into memory buffer
+              │
+              ▼
+buffer.toString('utf-8') → raw text content
+              │
+              ▼
+chunkText() splits into 43 overlapping chunks
+              │
+         for each chunk:
+              │
+         ┌────┴────┐
+         ▼          ▼ (fire-and-forget)
+  generateAndStore()   extractionGraph.run()
+  embedding → pgvector  extract people/facts
+  source: 'document'    store in people table
+         │
+         ▼
+  embeddingsStored++
+              │
+              ▼
+getAllPeople() → list of all extracted people
+              │
+              ▼
+emit chat:complete with summary via WebSocket
+return DocumentProcessingResult via REST
+```
+
+---
+
+### The Chunking Strategy
+
+The paragraph-first approach is important because it preserves semantic coherence. A journal entry like:
+
+```text
+November 8, 2025
+
+Dad finally agreed to see the cardiologist. Mom practically had to 
+drag him there but at least he went. Results were okay — blood 
+pressure is elevated but manageable with medication.
+```
+
+Gets kept together as one chunk rather than being split mid-sentence. The 50-character overlap at chunk boundaries ensures that if a key fact spans the end of one chunk and the start of the next, it appears in both — so neither chunk loses context.
+
+The journal produced 43 chunks from 15KB of text — roughly one chunk per journal entry or major paragraph group.
+
+---
+
+### The Unified Vector Search
+
+This is the key architectural achievement of Phase 7. The `message_embeddings` table has a `source` column with three values: `message`, `document`, `memory`. The semantic search query runs against all of them simultaneously:
+
+```sql
+SELECT id, content, source, metadata,
+       1 - (embedding <=> $1::vector) AS similarity
+FROM message_embeddings
+WHERE user_id = $2
+  AND embedding IS NOT NULL
+ORDER BY embedding <=> $1::vector
+LIMIT 5
+```
+
+No `WHERE source = 'message'` filter — it searches everything. When you ask "what do you know about Marcus?" the top 5 results might be a mix of document chunks about Marcus, memory entries extracted from those chunks, and live conversation messages. Claude gets all of it assembled into one context string and synthesizes a complete answer.
+
+---
+
+### What the Verification Proved
+
+**Document processing:** 43 chunks created from `sample-journal.txt`, 43 embeddings stored as `source: document`, 7 major people extracted (Sophie, Jake, Ethan, Dad, Mom, Lily, Marcus), plus minor characters Darren and Claire. Processing completed in 28 seconds.
+
+**Memory context on queries:** Each question assembled 3,000+ characters of context (Marcus: 3,228 chars, Jake: 2,120 chars, Dad: 1,917 chars, Lily: 1,473 chars) — the semantic search was pulling highly relevant document chunks for each query.
+
+**Claude's responses from the journal:**
+
+Marcus — complete 6-month arc from antagonist to mentor, including the architecture proposal rejection, billing module assignment, critical bug discovery, apology, co-presentation to VP, senior engineer recommendation, and celebration lunch.
+
+Jake — roommate of 3 years, YouTube cooking videos, ResumeAI startup, helping with financial projections, mock presentations, failed first investor meeting going quiet, second investor coming through, moving to Distillery District loft, three enterprise clients.
+
+Dad — blood pressure issues, stubborn about salt, cardiologist visit, medication working, grumpy about dietary restrictions, the "since when do you cook" joke, mom cooking differently without telling him, more energy, suggested walk after dinner.
+
+Lily — graphic designer, Tokyo to Vancouver move, tiny studio she was proud of, senior designer promotion, loneliness after best friend moved to Australia, called brother crying, the February visit walking the seawall and eating sushi, decision to move back to Toronto in May.
+
+Every detail matched the journal precisely. Zero fabrication.
+
+---
+
+### UI Polish
+
+The test page was renamed from "Know Me — Phase 3 Streaming Test" to "Know Me — Conversational Memory Agent" for the Loom demo. The native browser "Choose File" button was replaced with a custom styled button matching the green-on-dark theme of the rest of the interface. Clicking it triggers the hidden file input, and the filename display updates in green when a file is selected.
+
+---
+
+### Spec Requirements Now Satisfied
+
+- ✅ FR3 — REST endpoint `POST /api/conversations/:conversationId/upload`
+- ✅ FR3 — Accepts `.txt` and `.md` files up to 50KB
+- ✅ FR3 — Chunked with paragraph strategy and overlap
+- ✅ FR3 — Each chunk embedded and stored with `source: 'document'`
+- ✅ FR3 — LangGraph extraction pipeline runs on each chunk
+- ✅ FR3 — After processing, agent sends summary with extracted people
+- ✅ FR4 — Unified vector search across messages and document chunks
+- ✅ FR5 — References facts from uploaded documents naturally
+- ✅ FR5 — Synthesizes everything known about a person from all sources
+
+---
+
+One phase remains: Phase 8 — the test suite. Ready when you are.
+
+### Cursor (Phase 7 recap)
+
+## Phase 7 summary — document upload and processing
+
+**Goal:** Let users upload **`.txt` / `.md`** files (up to **50KB**), turn them into **searchable memory**: chunk → embed (`source: 'document'`) → run the **same LangGraph extraction** per chunk → return a **REST result** and broadcast a **WebSocket `chat:complete`**-style event with a **summary**.
+
+### What was added
+
+1. **Types** — `DocumentChunk`, `DocumentProcessingResult` (chunk metadata, counts, people list, timing).
+
+2. **`DocumentProcessorService`**  
+   - **Chunking:** split on **paragraphs** (`\n` + blank lines), then **~500 characters** with **50** overlap; long paragraphs are windowed first, then small pieces are merged up to the size limit.  
+   - **Per chunk (sequential for embeddings):** `EmbeddingService.generateAndStore(..., 'document', { fileName, chunkIndex, totalChunks, conversationId, … })`.  
+   - **Per chunk (non-blocking for extraction):** `ExtractionGraph.run('doc-{file}-{index}', userId, chunk)` with `.catch(...)` so API failures don’t break the loop.  
+   - **Summary people list:** `EntityService.getAllPeople(userId)` → names (everyone known for that user, not only from this file).
+
+3. **`DocumentsController`** — `POST /api/conversations/:conversationId/upload`, **multer** in memory, **50KB** limit, extension filter. Hardcoded test **`userId`** (as in your spec). After processing, **`ChatGateway.server.emit('chat:complete', { …, summary, isDocumentSummary: true })`** to all clients.
+
+4. **`DocumentsModule`** — Wires controller + processor; imports **Memory**, **Extraction**, **Entities**, **Chat** (for gateway injection).
+
+5. **`AppModule`** — Registers **`DocumentsModule`**.
+
+6. **`ChatModule`** — **Exports `ChatGateway`** so the documents layer can emit (gateway **file** unchanged).
+
+7. **`scripts/ws-test.html`** — File picker + **Upload Document** (`fetch` multipart), and **`chat:complete`** handler logs **`data.summary`** when present.
+
+8. **Removed** `src/modules/documents/index.ts` in favor of the real module.
+
+### Rules respected
+
+- No schema/migration edits, no edits to **`sample-journal.txt`**, gateway/stream/extraction **source files** unchanged (only **ChatModule exports** + new documents code + **ws-test**).
+
+### Caveats
+
+- **`userId`** on upload is still the **fixed UUID** from the prompt (not auth).  
+- **`chat:complete`** payload includes extra fields (**`summary`**, **`isDocumentSummary`**) beyond normal chat completions; clients should branch on that (as in **ws-test**).

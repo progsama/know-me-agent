@@ -7,6 +7,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { MemoryModule } from './modules/memory/memory.module';
 import { EntitiesModule } from './modules/entities/entities.module';
 import { ExtractionModule } from './modules/extraction/extraction.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ExtractionModule } from './modules/extraction/extraction.module';
     EntitiesModule,
     ExtractionModule,
     ChatModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}

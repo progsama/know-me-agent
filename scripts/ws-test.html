@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Know Me — Phase 3 Stream Test</title>
+    <title>Know Me — Demo</title>
     <style>
       body {
         font-family: monospace;
@@ -57,7 +57,7 @@
     </style>
   </head>
   <body>
-    <h2>Know Me — Phase 3 Streaming Test</h2>
+    <h2>Know Me — Conversational Memory Agent</h2>
 
     <label>User ID</label>
     <input id="userId" value="550e8400-e29b-41d4-a716-446655440000" />
@@ -76,6 +76,47 @@ Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and 
       <button onclick="disconnect()">Disconnect</button>
     </div>
 
+    <br />
+    <label>Document Upload (.txt or .md only — max 50KB)</label>
+    <div
+      style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px"
+    >
+      <!-- Hidden native file input -->
+      <input
+        type="file"
+        id="fileInput"
+        accept=".txt,.md"
+        style="display: none"
+        onchange="updateFileName(this)"
+      />
+      <!-- Custom styled button that triggers the hidden input -->
+      <button
+        onclick="document.getElementById('fileInput').click()"
+        style="margin: 0"
+      >
+        Choose File
+      </button>
+      <!-- Shows selected filename -->
+      <span
+        id="fileNameDisplay"
+        style="color: #888; font-size: 11px; font-family: monospace"
+      >
+        No file chosen
+      </span>
+      <button onclick="uploadDocument()" style="margin: 0">
+        Upload Document
+      </button>
+    </div>
+    <div
+      id="uploadResult"
+      style="
+        margin-top: 4px;
+        color: #00ffff;
+        font-size: 12px;
+        font-family: monospace;
+      "
+    ></div>
+
     <label>Events log:</label>
     <div id="log"></div>
 
@@ -86,6 +127,17 @@ Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and 
     <script>
       let socket = null;
       let reqCount = 0;
+
+      function updateFileName(input) {
+        const display = document.getElementById('fileNameDisplay');
+        if (input.files && input.files.length > 0) {
+          display.textContent = input.files[0].name;
+          display.style.color = '#00ff00';
+        } else {
+          display.textContent = 'No file chosen';
+          display.style.color = '#888';
+        }
+      }
 
       function log(msg) {
         const el = document.getElementById('log');
@@ -111,7 +163,11 @@ Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and 
           const streamEl = document.getElementById('stream');
           const response = streamEl.textContent;
           log('✅ complete — messageId: ' + data.messageId);
-          log('💬 Response: ' + response);
+          if (data.summary) {
+            log('📄 Document summary: ' + data.summary);
+          } else {
+            log('💬 Response: ' + response);
+          }
           streamEl.textContent = '';
         });
 
@@ -146,6 +202,61 @@ Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and 
 
       function disconnect() {
         if (socket) socket.disconnect();
+      }
+
+      async function uploadDocument() {
+        const fileInput = document.getElementById('fileInput');
+        const conversationId = document
+          .getElementById('conversationId')
+          .value.trim();
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+          log('⚠️ No file selected');
+          return;
+        }
+        if (!conversationId) {
+          log('⚠️ Paste a conversation ID first');
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        log('📄 Uploading: ' + file.name + ' (' + file.size + ' bytes)...');
+
+        try {
+          const response = await fetch(
+            'http://localhost:3000/api/conversations/' +
+              conversationId +
+              '/upload',
+            { method: 'POST', body: formData },
+          );
+          const result = await response.json();
+          if (response.ok) {
+            document.getElementById('uploadResult').textContent =
+              '✅ Processed: ' +
+              result.totalChunks +
+              ' chunks | ' +
+              result.embeddingsStored +
+              ' embeddings | ' +
+              result.processingTimeMs +
+              'ms | people: ' +
+              (result.peopleExtracted.length > 0
+                ? result.peopleExtracted.join(', ')
+                : 'none');
+            log(
+              '📄 Upload complete — ' +
+                result.totalChunks +
+                ' chunks | people: ' +
+                result.peopleExtracted.join(', '),
+            );
+          } else {
+            log('❌ Upload failed: ' + JSON.stringify(result));
+          }
+        } catch (err) {
+          log('❌ Upload error: ' + String(err));
+        }
       }
     </script>
   </body>
