@@ -121,7 +121,7 @@ export class DocumentProcessorService {
         }
 
         const syntheticMessageId = `doc-${fileName}-chunk-${chunk.index}`;
-        this.extractionGraph
+        await this.extractionGraph
           .run(syntheticMessageId, userId, chunk.content)
           .catch((error: unknown) => {
             const message =
