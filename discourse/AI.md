@@ -1286,3 +1286,90 @@ One phase remains: Phase 8 — the test suite. Ready when you are.
 
 - **`userId`** on upload is still the **fixed UUID** from the prompt (not auth).  
 - **`chat:complete`** payload includes extra fields (**`summary`**, **`isDocumentSummary`**) beyond normal chat completions; clients should branch on that (as in **ws-test**).
+
+### Phase 8
+
+### Claude (Phase 8)
+
+Here's a clean summary of Phase 8:
+
+---
+
+## Phase 8 — Tests Complete
+
+**Branch:** `phase/8-tests` → merged to `dev`
+**Result:** 66 tests passing across 10 files, zero failures
+
+---
+
+### What was built
+
+**6 unit test files** (spec-required, named explicitly in the README):
+
+1. `embedding.service.spec.ts` — embedding generation, storage, graceful degradation when API is down, no DB call when embedding fails
+2. `semantic-search.service.spec.ts` — top-k retrieval, similarity ordering, source filtering, empty results, embedding failure fallback
+3. `entity.service.spec.ts` — person creation, deduplication by name+user, fact merging, case-insensitive name lookup, null when not found
+4. `context-assembly.service.spec.ts` — context string assembly, empty string when no data, low similarity filtering, parallel execution of search and getAllPeople
+5. `extraction.graph.spec.ts` — full graph run, store node called after extract node, malformed JSON handled gracefully, empty people array skips upsert, correct node ordering
+6. `stream.service.spec.ts` — chat:chunk emitted per token, chat:complete with correct messageId, assistant message saved to DB, chat:error on failure, full response concatenation
+
+**2 spec-required integration tests:**
+
+1. `chat.service.integration.spec.ts` — message pipeline in correct order: save → embed → extract → assemble context → stream
+2. `document-processor.integration.spec.ts` — upload pipeline: chunks created → all embedded → extraction per chunk → semantic search returns doc content
+
+**2 additional tests (your additions):**
+
+1. `chat.gateway.spec.ts` — WebSocket connection accepted with valid userId, disconnected when userId missing or empty, chat:send triggers pipeline, error handled without throw, disconnect clean
+2. `e2e-pipeline.spec.ts` — full 10-phase sequence: conversation creation → WebSocket → first message → 43 chunks uploaded and embedded → extraction on all chunks → semantic search → context assembly with all 3 key people → streaming with memory context → individual recall of Marcus/Sophie/Jake with specific facts → complete pipeline order verified
+
+---
+
+### Your additions beyond the spec
+
+- **WebSocket tests** — connection lifecycle, auth rejection, event routing
+- **End-to-end pipeline** — all 10 phases of the full system in sequence
+- **8-person recall test** — all named people from the sample journal verified individually with specific testable facts (Sophie's thesis, Marcus's promotion, Jake's startup, Lily's Vancouver, Dad's cardiologist)
+- **Large document test** — ~50KB document processed without errors, chunk count verified, graceful degradation when one chunk embedding fails
+- **Themes/sub-themes idea** — identified as a future improvement, to be documented in AI_DEV_JOURNAL.md and README
+
+---
+
+Ready for Phase 9 — README.md and AI_DEV_JOURNAL.md whenever you are.
+
+### Cursor (Phase 8 recap)
+
+## Phase 8 summary — test suite
+
+Phase 8 focused on building a full test harness around your memory agent pipeline and validating it end-to-end with mocks only (no real DB/API calls).
+
+### What was delivered
+
+- Added **10 new `.spec.ts` files** across memory, entities, extraction, chat, and documents.
+- Covered:
+  - embedding generation/storage behavior
+  - semantic search result handling
+  - entity upsert + fact deduplication
+  - context assembly behavior and filtering
+  - extraction pipeline behavior under success/failure cases
+  - stream/gateway chat event behavior
+  - document chunking + processing flow
+  - broad pipeline integration/e2e simulations
+- Kept source code untouched for test-driven checks (tests instantiate/mimic dependencies directly).
+
+### Key coverage themes
+
+- **Graceful degradation paths** (null/failed embedding, malformed extraction output, partial chunk failures).
+- **Ordering expectations** in pipeline-style integration tests.
+- **Source tagging** verification (e.g., `source: 'document'` for document chunks).
+- **Recall-oriented fixtures** for major people/entities from journal scenarios.
+
+### Final verification
+
+- Ran:
+  - `pnpm test --run 2>&1`
+- Final result:
+  - **10/10 test files passed**
+  - **66/66 tests passed**
+
+If you want, I can also produce a compact “Phase 8 test matrix” (requirement -> exact spec file/test name) for documentation in `discourse/AI.md`.

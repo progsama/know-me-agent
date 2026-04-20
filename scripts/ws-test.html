@@ -226,36 +226,36 @@ Hello, my name is Alex. My sister Lily has been living in Tokyo for 2 years and 
         log('📄 Uploading: ' + file.name + ' (' + file.size + ' bytes)...');
 
         try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
           const response = await fetch(
             'http://localhost:3000/api/conversations/' +
               conversationId +
               '/upload',
-            { method: 'POST', body: formData },
+            { method: 'POST', body: formData, signal: controller.signal },
           );
+          clearTimeout(timeout);
           const result = await response.json();
           if (response.ok) {
             document.getElementById('uploadResult').textContent =
-              '✅ Processed: ' +
-              result.totalChunks +
-              ' chunks | ' +
-              result.embeddingsStored +
-              ' embeddings | ' +
-              result.processingTimeMs +
-              'ms | people: ' +
-              (result.peopleExtracted.length > 0
-                ? result.peopleExtracted.join(', ')
-                : 'none');
+              '⏳ Processing: ' +
+              result.fileName +
+              ' — watch for WebSocket summary below';
             log(
-              '📄 Upload complete — ' +
-                result.totalChunks +
-                ' chunks | people: ' +
-                result.peopleExtracted.join(', '),
+              '📄 Upload accepted — processing in background, watch for summary...',
             );
           } else {
             log('❌ Upload failed: ' + JSON.stringify(result));
           }
         } catch (err) {
-          log('❌ Upload error: ' + String(err));
+          if (err instanceof Error && err.name === 'AbortError') {
+            log(
+              '⚠️ Upload timed out waiting for response — but document may still be processing. Check the WebSocket summary above.',
+            );
+          } else {
+            log('❌ Upload error: ' + String(err));
+          }
         }
       }
     </script>
