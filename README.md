@@ -227,29 +227,29 @@ Disconnect and reconnect using the same `userId` and `conversationId`. The agent
 └────────────────────────────┬────────────────────────────────────┘
                              │
                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       NESTJS APPLICATION                        │
-│                        localhost:3000                           │
-│                                                                 │
-│  ┌──────────────────┐        ┌──────────────────────────────┐  │
-│  │  ChatGateway     │        │   DocumentsController        │  │
-│  │  (Socket.IO)     │        │   POST /upload               │  │
-│  │                  │        │   ↓ returns instantly        │  │
-│  │  handleConnect() │        │   processInBackground()      │  │
-│  │  handleMessage() │        └──────────────┬───────────────┘  │
-│  └────────┬─────────┘                       │                  │
-│           │                                 │                  │
-│           ▼                                 ▼                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                      ChatService                         │  │
-│  │                                                          │  │
+┌───────────────────────────────────────────────────────────────┐
+│                       NESTJS APPLICATION                      │
+│                        localhost:3000                         │
+│                                                               │
+│  ┌──────────────────┐        ┌─────────────────────────────┐  │
+│  │  ChatGateway     │        │   DocumentsController       │  │
+│  │  (Socket.IO)     │        │   POST /upload              │  │
+│  │                  │        │   ↓ returns instantly       │  │
+│  │  handleConnect() │        │   processInBackground()     │  │
+│  │  handleMessage() │        └──────────────┬──────────────┘  │
+│  └────────┬─────────┘                       │                 │
+│           │                                 │                 │
+│           ▼                                 ▼                 │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │                      ChatService                        │  │
+│  │                                                         │  │
 │  │  1. saveMessage()          → ConversationService (DB)   │  │
 │  │  2. generateAndStore()     → EmbeddingService (async)   │  │
 │  │  3. extractionGraph.run()  → ExtractionGraph  (async)   │  │
 │  │  4. assembleContext()      → ContextAssembly  (sync)    │  │
 │  │  5. streamResponse()       → StreamService              │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                 │
+│  └─────────────────────────────────────────────────────────┘  │
+│                                                               │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────┐  │
 │  │  StreamService   │  │  ExtractionGraph │  │ContextAssem │  │
 │  │                  │  │  (LangGraph)     │  │ blyService  │  │
@@ -264,55 +264,55 @@ Disconnect and reconnect using the same `userId` and `conversationId`. The agent
 │  │  → chat:chunk    │  │  │ EntitySvc  │  │  │ parallel    │  │
 │  │  → chat:complete │  │  └────────────┘  │  └─────────────┘  │
 │  └──────────────────┘  └──────────────────┘                   │
-└─────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────┘
                              │
                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     POSTGRESQL (Docker :5433)                   │
-│                                                                 │
-│  ┌──────────────┐  ┌───────────────────┐  ┌─────────────────┐ │
-│  │conversations │  │conversation_      │  │message_         │ │
-│  │              │  │messages           │  │embeddings       │ │
-│  │id (uuid)     │  │                   │  │                 │ │
-│  │user_id       │  │id (uuid)          │  │id (uuid)        │ │
-│  │status        │  │conversation_id FK │  │user_id          │ │
-│  │title         │  │user_id            │  │content (text)   │ │
-│  │created_at    │  │role               │  │embedding        │ │
-│  │updated_at    │  │content            │  │  vector(1536)   │ │
-│  └──────────────┘  │metadata (jsonb)   │  │source           │ │
-│                    │created_at         │  │  message/       │ │
-│  ┌──────────────┐  └───────────────────┘  │  document/      │ │
-│  │people        │                         │  memory         │ │
-│  │              │  ┌───────────────────┐  │metadata (jsonb) │ │
-│  │id (uuid)     │  │memory_entries     │  │created_at       │ │
-│  │user_id       │  │                   │  │                 │ │
-│  │name          │  │id (uuid)          │  │HNSW Index:      │ │
-│  │relationship  │  │user_id            │  │vector_cosine    │ │
-│  │facts (jsonb) │  │content            │  │m=16             │ │
-│  │UNIQUE        │  │category           │  │ef_construction  │ │
-│  │(user_id,name)│  │  fact/preference  │  │=64              │ │
-│  │created_at    │  │  /relationship    │  └─────────────────┘ │
-│  │updated_at    │  │  /emotion         │                      │
-│  └──────────────┘  │entity_id FK       │                      │
-│                    │embedding_id FK    │                      │
-│                    │created_at         │                      │
-│                    └───────────────────┘                      │
-└─────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                     POSTGRESQL (Docker :5433)                  │
+│                                                                │
+│  ┌──────────────┐  ┌───────────────────┐  ┌─────────────────┐  │
+│  │conversations │  │conversation_      │  │message_         │  │
+│  │              │  │messages           │  │embeddings       │  │
+│  │id (uuid)     │  │                   │  │                 │  │
+│  │user_id       │  │id (uuid)          │  │id (uuid)        │  │
+│  │status        │  │conversation_id FK │  │user_id          │  │
+│  │title         │  │user_id            │  │content (text)   │  │
+│  │created_at    │  │role               │  │embedding        │  │
+│  │updated_at    │  │content            │  │  vector(1536)   │  │
+│  └──────────────┘  │metadata (jsonb)   │  │source           │  │
+│                    │created_at         │  │  message/       │  │
+│  ┌──────────────┐  └───────────────────┘  │  document/      │  │
+│  │people        │                         │  memory         │  │
+│  │              │  ┌───────────────────┐  │metadata (jsonb) │  │
+│  │id (uuid)     │  │memory_entries     │  │created_at       │  │
+│  │user_id       │  │                   │  │                 │  │
+│  │name          │  │id (uuid)          │  │HNSW Index:      │  │
+│  │relationship  │  │user_id            │  │vector_cosine    │  │
+│  │facts (jsonb) │  │content            │  │m=16             │  │
+│  │UNIQUE        │  │category           │  │ef_construction  │  │
+│  │(user_id,name)│  │  fact/preference  │  │=64              │  │
+│  │created_at    │  │  /relationship    │  └─────────────────┘  │
+│  │updated_at    │  │  /emotion         │                       │
+│  └──────────────┘  │entity_id FK       │                       │
+│                    │embedding_id FK    │                       │
+│                    │created_at         │                       │
+│                    └───────────────────┘                       │
+└────────────────────────────────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      EXTERNAL AI SERVICES                       │
 │                                                                 │
 │   Anthropic API                    OpenAI API                   │
-│   ┌─────────────────────┐         ┌──────────────────────────┐ │
-│   │ claude-sonnet-...   │         │ text-embedding-3-small   │ │
-│   │ Chat responses      │         │ 1536 dimensions          │ │
-│   │ Streaming enabled   │         │ message + document +     │ │
-│   │                     │         │ memory embeddings        │ │
-│   │ claude-haiku-...    │         └──────────────────────────┘ │
-│   │ Entity extraction   │                                      │
-│   │ JSON output only    │                                      │
-│   └─────────────────────┘                                      │
+│   ┌─────────────────────┐         ┌──────────────────────────┐  │
+│   │ claude-sonnet-...   │         │ text-embedding-3-small   │  │
+│   │ Chat responses      │         │ 1536 dimensions          │  │
+│   │ Streaming enabled   │         │ message + document +     │  │
+│   │                     │         │ memory embeddings        │  │
+│   │ claude-haiku-...    │         └──────────────────────────┘  │
+│   │ Entity extraction   │                                       │
+│   │ JSON output only    │                                       │
+│   └─────────────────────┘                                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
